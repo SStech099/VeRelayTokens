@@ -25,7 +25,7 @@ module.exports = {
   },
         etherscan: {
           apiKey: {
-            avalancheFujiTestnet: "S2EI1WDSF6HFZIDYWRJF2I5M38UXRRE4G9"
+            avalancheFujiTestnet: ""
           },
         },
         solidity: {
