@@ -1,126 +1,65 @@
-// @ts-nocheck
-const { ethers, network, upgrades } = require("hardhat");
 const { expect } = require("chai");
-const { describe } = require("mocha");
+const { ethers } = require("hardhat");
 
-describe("VeRelay Staking", function () {
-  before(async function () {
-    this.VeRelayStakingCF = await ethers.getContractFactory("VeRelayStaking");
-    this.VeRelayTokenCF = await ethers.getContractFactory("VeRelayToken");
-    this.RelayTokenCF = await ethers.getContractFactory("RelayToken");
+let token,veToken,tokenStaking;
+let owner,user1,user2,user3,user4;
 
-    this.signers = await ethers.getSigners();
-    this.dev = this.signers[0];
-    this.alice = this.signers[1];
-    this.bob = this.signers[2];
-    this.carol = this.signers[3];
+async function getAddresses() {
+  [owner,user1,user2,user3,user4] = await ethers.getSigners();
+}
+
+function toWei(n) {
+  return ethers.utils.parseEther(n);
+}
+
+function toEth(n) {
+  return ethers.utils.formatEther(n);
+}
+
+async function deploy() {
+
+  const Token = await ethers.getContractFactory("RelayToken");
+  token = await Token.deploy();
+  await token.deployed();
+
+  const Token2 = await ethers.getContractFactory("VeRelayToken");
+  veToken = await Token2.deploy();
+  await veToken.deployed();
+
+  const VeRelayStaking = await ethers.getContractFactory("VeRelayStaking");
+  tokenStaking = await VeRelayStaking.deploy(token.address, veToken.address, 100, 100, 100, 300, 10000);
+  await tokenStaking.deployed();
+
+  await token.transfer(user1.address, 50000);
+  await token.transfer(user2.address, 50000);
+  await token.transfer(user3.address, 50000);
+  await token.transfer(user4.address, 50000);
+}
+
+describe("Deploying Contracts", async() => {
+  it("Contracts Deployed", async() => {
+      await getAddresses();
+      await deploy();
+  }).timeout("150s");
+});
+
+describe("Check deployments", function() {
+  it("Should assign the tokens to user", async function() {
+    expect(await token.balanceOf(user1.address)).to.equal(50000);
   });
-
-  beforeEach(async function () {
-    this.veRelay = await this.VeRelayTokenCF.deploy();
-    this.relay = await this.RelayTokenCF.deploy();
-
-    await this.relay.mint(this.alice.address, ethers.utils.parseEther("1000"));
-    await this.relay.mint(this.bob.address, ethers.utils.parseEther("1000"));
-    await this.relay.mint(this.carol.address, ethers.utils.parseEther("1000"));
-
-    this.veRelayPerSharePerSec = ethers.utils.parseEther("1");
-    this.speedUpVeRelayPerSharePerSec = ethers.utils.parseEther("1");
-    this.speedUpThreshold = 5;
-    this.speedUpDuration = 50;
-    this.maxCapPct = 20000;
-
-    this.veRelayStaking = await upgrades.deployProxy(this.VeRelayStakingCF, [
-      this.relay.address,
-      this.veRelay.address,
-      this.veRelayPerSharePerSec,
-      this.speedUpVeRelayPerSharePerSec,
-      this.speedUpThreshold,
-      this.speedUpDuration,
-      this.maxCapPct,
-    ]);
-    await this.veRelay.transferOwnership(this.veRelayStaking.address);
-
-    await this.relay
-      .connect(this.alice)
-      .approve(this.veRelayStaking.address, ethers.utils.parseEther("100000"));
-    await this.relay
-      .connect(this.bob)
-      .approve(this.veRelayStaking.address, ethers.utils.parseEther("100000"));
-    await this.relay
-      .connect(this.carol)
-      .approve(this.veRelayStaking.address, ethers.utils.parseEther("100000"));
+  it("Should set the right addresses", async function() {
+    expect(await tokenStaking.veRelay()).to.equal(veToken.address);
+    expect(await tokenStaking.relay()).to.equal(token.address);
   });
-  describe("setMaxCapPct", function () {
-    it("should not allow non-owner to setMaxCapPct", async function () {
-      await expect(
-        this.veRelayStaking.connect(this.alice).setMaxCapPct(this.maxCapPct + 1)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
-
-    it("should not allow owner to set lower maxCapPct", async function () {
-      expect(await this.veRelayStaking.maxCapPct()).to.be.equal(this.maxCapPct);
-
-      await expect(
-        this.veRelayStaking.connect(this.dev).setMaxCapPct(this.maxCapPct - 1)
-      ).to.be.revertedWith(
-        "VeRelayStaking: expected new _maxCapPct to be greater than existing maxCapPct"
-      );
-    });
-
-    it("should not allow owner to set maxCapPct greater than upper limit", async function () {
-      await expect(
-        this.veRelayStaking.connect(this.dev).setMaxCapPct(10000001)
-      ).to.be.revertedWith(
-        "VeRelayStaking: expected new _maxCapPct to be non-zero and <= 10000000"
-      );
-    });
-
-    it("should allow owner to setMaxCapPct", async function () {
-      expect(await this.veRelayStaking.maxCapPct()).to.be.equal(this.maxCapPct);
-
-      await this.veRelayStaking
-        .connect(this.dev)
-        .setMaxCapPct(this.maxCapPct + 100);
-
-      expect(await this.veRelayStaking.maxCapPct()).to.be.equal(
-        this.maxCapPct + 100
-      );
-    });
+  it("Should set the right state variables", async function() {
+    expect(await tokenStaking.maxCapPct()).to.equal(10000);
+    expect(await tokenStaking.speedUpThreshold()).to.equal(100);
+    expect(await tokenStaking.speedUpDuration()).to.equal(300);
+    expect(await tokenStaking.veRelayPerSharePerSec()).to.equal(100);
+    expect(await tokenStaking.speedUpVeRelayPerSharePerSec()).to.equal(100);
   });
+});
 
-  describe("setVeRelayPerSharePerSec", function () {
-    it("should not allow non-owner to setVeRelayPerSharePerSec", async function () {
-      await expect(
-        this.veRelayStaking
-          .connect(this.alice)
-          .setVeRelayPerSharePerSec(ethers.utils.parseEther("1.5"))
-      ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
-
-    it("should not allow owner to set veRelayPerSharePerSec greater than upper limit", async function () {
-      await expect(
-        this.veRelayStaking
-          .connect(this.dev)
-          .setVeRelayPerSharePerSec(ethers.utils.parseUnits("1", 37))
-      ).to.be.revertedWith(
-        "VeRelayStaking: expected _veRelayPerSharePerSec to be <= 1e36"
-      );
-    });
-
-    it("should allow owner to setVeRelayPerSharePerSec", async function () {
-      expect(await this.veRelayStaking.veRelayPerSharePerSec()).to.be.equal(
-        this.veRelayPerSharePerSec
-      );
-
-      await this.veRelayStaking
-        .connect(this.dev)
-        .setVeRelayPerSharePerSec(ethers.utils.parseEther("1.5"));
-
-      expect(await this.veRelayStaking.veRelayPerSharePerSec()).to.be.equal(
-        ethers.utils.parseEther("1.5")
-      );
-    });
-  });
+describe("Function testing", function() {
   
 });
