@@ -124,14 +124,12 @@ describe("Function Deposit", function() {
     expect(await beforeUser1Info[2]).to.equal(0);
     expect(await beforeUser1Info[3]).to.equal(0);
 
-    // Check joe balance before deposit
     expect(await token.balanceOf(user1.address)).to.equal(50000);
     await veToken.transferOwnership(tokenStaking.address);
 
     await tokenStaking.connect(user1).deposit(5000);
     const depositBlock = await ethers.provider.getBlock();
 
-    // Check joe balance after deposit
     expect(await token.balanceOf(user1.address)).to.equal(45000);
 
     const afterUser1Info = await tokenStaking.userInfos(
