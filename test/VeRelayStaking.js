@@ -152,10 +152,28 @@ describe("Function Deposit", function() {
     const user1Bal = await tokenStaking.userInfos(user1.address);
     expect(await user1Bal[0]).to.equal(toWei("10"));
   });
-//   // it()
-//   // it()
-//   // it()
-//   // it()
+  it("should receive speed up benefits after depositing speedUpThreshold with non-zero balance", async function () {
+  await tokenStaking.connect(user1).deposit(toWei("10"));
+  await increase(350);
+  await tokenStaking.connect(user1).claim();
+  const afterClaimUser1Info = await tokenStaking.userInfos(user1.address);
+  // speedUpTimestamp
+  expect(afterClaimUser1Info[3]).to.equal(0);
+
+  await tokenStaking.connect(user1).deposit(toWei("5"));
+  const secondDepositBlock = await ethers.provider.getBlock();
+  const secondDepositUser1Info = await tokenStaking.userInfos(user1.address);
+  // speedUpTimestamp
+  expect(secondDepositUser1Info[3]).to.equal(secondDepositBlock.timestamp + 300);
+});
+  it("should not receive speed up benefits after depositing less than speedUpThreshold with non-zero balance", async function () {
+  await tokenStaking.connect(user1).deposit(toWei("10"));
+  await increase(300);
+  await tokenStaking.connect(user1).deposit(toWei("0.1"));
+  const afterUser1Info = await tokenStaking.userInfos(user1.address);
+  // speedUpTimestamp
+  expect(afterUser1Info[3]).to.equal(0);
+});
 });
 
 describe("function Withdraw", function () {
