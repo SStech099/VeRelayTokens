@@ -119,13 +119,14 @@ describe("Function Deposit", function() {
     const beforeUser1Info = await tokenStaking.userInfos(
       user1.address
     );
-    expect(beforeUser1Info[0]).to.equal(0);
-    expect(beforeUser1Info[1]).to.equal(0);
-    expect(beforeUser1Info[2]).to.equal(0);
-    expect(beforeUser1Info[3]).to.equal(0);
+    expect(await beforeUser1Info[0]).to.equal(0);
+    expect(await beforeUser1Info[1]).to.equal(0);
+    expect(await beforeUser1Info[2]).to.equal(0);
+    expect(await beforeUser1Info[3]).to.equal(0);
 
     // Check joe balance before deposit
     expect(await token.balanceOf(user1.address)).to.equal(50000);
+    await veToken.transferOwnership(tokenStaking.address);
 
     await tokenStaking.connect(user1).deposit(5000);
     const depositBlock = await ethers.provider.getBlock();
@@ -136,18 +137,49 @@ describe("Function Deposit", function() {
     const afterUser1Info = await tokenStaking.userInfos(
       user1.address
     );
-    expect(afterUser1Info[0]).to.equal(5000);
-    expect(afterUser1Info[1]).to.equal(0);
-    expect(afterUser1Info[2]).to.equal(depositBlock.timestamp);
-    expect(afterUser1Info[3]).to.equal(
-      depositBlock.timestamp + tokenStaking.speedUpDuration);
+    expect(await afterUser1Info[0]).to.equal(5000);
+    expect(await afterUser1Info[1]).to.equal(0);
+    expect(await afterUser1Info[2]).to.equal(depositBlock.timestamp);
   });
 });
 
-describe("function Withdraw", function () {
-  it("Should not execute if the withdraw amount is zero", async function() {
-    expect(await tokenStaking.withdraw(0),{
-      gasLimit: 10000000,
-  }).to.be.revertedWith("VeRelayStaking: expected withdraw amount to be greater than zero");
+// describe("function Withdraw", function () {
+//   it("Should not execute if the withdraw amount is zero", async function() {
+//     expect(await tokenStaking.connect(user2).withdraw(0)).to.be.revertedWith("VeRelayStaking: expected withdraw amount to be greater than zero");
+//   });
+//   it("Should not execute if withdraw amount is greater than user balance", async function() {
+//     expect(await tokenStaking.connect(user2).withdraw(1)).to.be.revertedWith("VeRelayStaking: cannot withdraw greater amount of RELAY than currently staked");
+//   });
+// });
+
+
+describe("function Claim", function () {
+  it("should not be able to claim with zero balance", async function () {
+    await expect(tokenStaking.connect(user1).claim()
+    ).to.be.revertedWith("VeRelayStaking: cannot claim veRELAY when no RELAY is staked");
+  });
+  it("should update lastRewardTimestamp on claim", async function () {
+    await tokenStaking.connect(user1).deposit(1000);
+    // await increase(1000);
+    await tokenStaking.connect(user1).claim();
+    const claimBlock = await ethers.provider.getBlock();
+
+    // lastRewardTimestamp
+    expect(await tokenStaking.lastRewardTimestamp()).to.equal(claimBlock.timestamp);
+  });
+  it("should receive veRelay tokens on claim", async function () {
+    await tokenStaking.connect(user1).deposit(1000);
+    await increase(49);
+    expect(await veToken.balanceOf(user1.address)).to.equal(0);
+
+    await tokenStaking.connect(user1).claim();
+    const bal = await veToken.balanceOf(user1.address);
+    console.log(bal);
+    // expect(await veToken.balanceOf(user1.address)).to.equal(100000);
   });
 });
+
+const increase = (seconds) => {
+  ethers.provider.send("evm_increaseTime", [seconds]);
+  ethers.provider.send("evm_mine", []);
+};
