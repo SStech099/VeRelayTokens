@@ -174,6 +174,25 @@ describe("Function Deposit", function() {
   // speedUpTimestamp
   expect(afterUser1Info[3]).to.equal(0);
 });
+it("should have speed up period extended after depositing speedUpThreshold and currently receiving speed up benefits", async function () {
+  await tokenStaking.connect(user1).deposit(toWei("10"));
+  const initialDepositBlock = await ethers.provider.getBlock();
+  const initialDepositUser1Info = await tokenStaking.userInfos(user1.address);
+  const initialDepositSpeedUpEndTimestamp = initialDepositUser1Info[3];
+  expect(initialDepositSpeedUpEndTimestamp).to.equal(initialDepositBlock.timestamp + 300);
+
+  // Increase by some amount of time less than speedUpDuration
+  await increase(149);
+
+  // Deposit speedUpThreshold amount so that speed up period gets extended
+  await tokenStaking.connect(user1).deposit(toWei("5"));
+  const secondDepositBlock = await ethers.provider.getBlock();
+  const secondDepositUser1Info = await tokenStaking.userInfos(user1.address);
+  const secondDepositSpeedUpEndTimestamp = secondDepositUser1Info[3];
+
+  expect(secondDepositSpeedUpEndTimestamp.gt(initialDepositSpeedUpEndTimestamp)).to.equal(true);
+  expect(secondDepositSpeedUpEndTimestamp).to.equal(secondDepositBlock.timestamp + 300);
+});
 });
 
 describe("function Withdraw", function () {
@@ -264,7 +283,7 @@ describe("function Claim", function () {
     // the first 10 seconds, a rate of 2 for the next 10 seconds, and a rate of
     // 1.5 for the last 10 seconds, i.e.:
     // baseVeRelay = 10 * 10 * 1 + 10 * 10 * 2 + 10 * 10 * 1.5 = 450
-    // speedUpVeJoe = 10 * 30 = 300
+    // speedUpVeRelay = 10 * 30 = 300
     expect(await veToken.balanceOf(user1.address)).to.equal(toWei("750"));
   });
 });
